@@ -23,6 +23,10 @@ Copies of the GNU Lesser General Public license verion 3 and the Apache license 
 
 **With gradle installed and in PATH:**
    
+    $> gradle assemble
+    
+**With gradle wrapper which install gradle 2.10 locally:**
+   
     $> gradlew assemble
 
 ## USING ENIGMA
