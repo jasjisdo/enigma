@@ -1,9 +1,9 @@
 // Do it this way so people with older Gradle can hopefully still build.
 buildscript {
-	repositories { jcenter() }
+	repositories { mavenCentral() }
 
 	dependencies {
-		classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+		classpath 'com.github.johnrengelman:shadow:8.1.1'
 	}
 }
 
@@ -63,20 +63,20 @@ dependencies {
 file('test/cuchaz/enigma/inputs').listFiles().each {theFile ->
 	if (theFile.directory) {
 		task("${theFile.name}TestJar", type: Jar, dependsOn: testClasses) {
-			from ('build/classes/test') {
+			from (sourceSets.test.output.classesDirs) {
 				include "cuchaz/enigma/inputs/$theFile.name/**/*.class"
 				include 'cuchaz/enigma/inputs/Keep.class'
 			}
-			
-			archiveName = theFile.name + '.jar'
-			destinationDir = file('build/test-inputs')
+
+			archiveFileName = theFile.name + '.jar'
+			destinationDirectory = file('build/test-inputs')
 		}
 		
 		task ("${theFile.name}TestObf", type: JavaExec,
 				dependsOn: "${theFile.name}TestJar") {
-			main 'proguard.ProGuard'
+			mainClass = 'proguard.ProGuard'
 			classpath configurations.proGuard
-			
+
 			args '@proguard-test.conf', '-injars', file('build/test-inputs/' +
 					"${theFile.name}.jar"), '-outjars', file('build/test-obf/' +
 							"${theFile.name}.jar")
@@ -90,7 +90,7 @@ file('test/cuchaz/enigma/inputs').listFiles().each {theFile ->
 task ('deobfTranslationInput', type: JavaExec, dependsOn: 'translationTestObf')
 {
 	classpath sourceSets.main.runtimeClasspath
-	main 'cuchaz.enigma.CommandMain'
+	mainClass = 'cuchaz.enigma.CommandMain'
 	args 'deobfuscate', file('build/test-obf/translation.jar'),
 			file('build/test-deobf/translation.jar')
 }
@@ -126,31 +126,33 @@ shadowJar {
 
 // Now make the deployable application jar with extra classes stripped out using
 // ProGuard (don't use JavaExec because we want to redirect output to a file).
-task('thinJar', dependsOn: shadowJar) << {
-	javaexec {
-		main 'proguard.ProGuard'
-		classpath configurations.proGuard
-		
-		args '@proguard-build.conf', '-injars', shadowJar.archivePath,
-				// well this works...
-				'-outjars', file("build/libs/$project.name-${version}-thin.jar")
-		
-		// Cut down on console spam
-		standardOutput new File(buildDir, 'proguard.log').newOutputStream();
+task('thinJar', dependsOn: shadowJar) {
+	doLast {
+		javaexec {
+			mainClass = 'proguard.ProGuard'
+			classpath configurations.proGuard
+
+			args '@proguard-build.conf', '-injars', shadowJar.archiveFile.get().asFile,
+					// well this works...
+					'-outjars', file("build/libs/$project.name-${version}-thin.jar")
+
+			// Cut down on console spam
+			standardOutput new File(buildDir, 'proguard.log').newOutputStream();
+		}
+		println 'Saved ProGuard output to build/proguard.log'
 	}
-	println 'Saved ProGuard output to build/proguard.log'
 }
 
 // Create a library jar, containing only the deobfuscation code, for use at
 // runtime. This will be deployed to Maven Local with a POM, and can be uploaded
 // to a remote server manually (for now anyway).
 task('libJar', type: Jar, dependsOn: classes) {
-	baseName = 'enigma-lib'
-	
-	from("$buildDir/classes/main") {
+	archiveBaseName = 'enigma-lib'
+
+	from(sourceSets.main.output.classesDirs) {
 		exclude 'cuchaz/enigma/gui/**'
 		exclude 'cuchaz/enigma/convert/**'
-		
+
 		// Main classes + inner classes (keep CommandMain)
 		exclude 'cuchaz/enigma/Main.class'
 		exclude 'cuchaz/enigma/Main.class'
